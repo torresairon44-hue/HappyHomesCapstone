@@ -516,6 +516,8 @@ class Visitor(models.Model):
     name = models.CharField(max_length=255)
     gmail = models.EmailField(blank=True, null=True)  # Gmail field
     contact_number = models.CharField(max_length=20, blank=True, null=True)  # Optional contact number
+    address = models.CharField(max_length=500, blank=True, null=True)  # Address of visit
+    homeowner_name = models.CharField(max_length=255, blank=True, null=True)  # Homeowner to visit
     pin_entered = models.CharField(max_length=6, blank=True, null=True)
     history = HistoricalRecords()  # Entered resident PIN
     resident = models.ForeignKey(
@@ -875,7 +877,112 @@ class ServiceFee(models.Model):
         verbose_name_plural = "Service Fees"
 
     def __str__(self):
-        return f"{self.homeowner.username} - {self.month or 'N/A'} {self.year or ''} - {self.get_status_display()}"    
+        return f"{self.homeowner.username} - {self.month or 'N/A'} {self.year or ''} - {self.get_status_display()}"
+    
+    def check_if_overdue(self):
+        """Auto-check if payment is overdue"""
+        from django.utils import timezone
+        if self.status == 'unpaid' and self.due_date:
+            if timezone.now().date() > self.due_date:
+                self.status = 'delayed'
+                self.save()
+                return True
+        return False
+    
+    def get_status_display_with_icon(self):
+        """Get status with icon"""
+        icons = {
+            'unpaid': '🔵 UNPAID',
+            'paid': '✅ PAID',
+            'delayed': '🔴 OVERDUE'
+        }
+        return icons.get(self.status, self.status.upper())
+
+
+class PaymentLink(models.Model):
+    """Simple payment link tracker"""
+    service_fee = models.OneToOneField(
+        ServiceFee,
+        on_delete=models.CASCADE,
+        related_name='payment_link'
+    )
+    link_id = models.CharField(max_length=100, unique=True)
+    reference_number = models.CharField(max_length=100, unique=True)
+    checkout_url = models.URLField(max_length=500)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    paid = models.BooleanField(default=False)
+    paid_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    history = HistoricalRecords()
+    
+    class Meta:
+        db_table = 'payment_link'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.reference_number} - {'PAID' if self.paid else 'UNPAID'}"
+
+
+class PayMongoTransaction(models.Model):
+    """Track PayMongo payments (QRPh/GCash/E-Wallet)"""
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('chargeable', 'Chargeable'),
+        ('paid', 'Paid'),
+        ('failed', 'Failed'),
+        ('cancelled', 'Cancelled'),
+    ]
+    
+    service_fee = models.ForeignKey(
+        ServiceFee,
+        on_delete=models.CASCADE,
+        related_name='paymongo_transactions'
+    )
+    
+    # PayMongo IDs
+    source_id = models.CharField(max_length=100, unique=True)
+    payment_id = models.CharField(max_length=100, blank=True, null=True, unique=True)
+    
+    # Transaction Details
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=3, default='PHP')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # URLs
+    checkout_url = models.URLField(max_length=500)
+    
+    # Billing Info
+    billing_name = models.CharField(max_length=255)
+    billing_email = models.EmailField()
+    billing_phone = models.CharField(max_length=20)
+    
+    # Timestamps
+    paid_at = models.DateTimeField(blank=True, null=True)
+    
+    # Fees
+    transaction_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    net_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+    # Metadata
+    test_mode = models.BooleanField(default=True)
+    raw_data = models.JSONField(blank=True, null=True)
+    
+    # Tracking
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    history = HistoricalRecords()
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "PayMongo Transaction"
+        verbose_name_plural = "PayMongo Transactions"
+    
+    def __str__(self):
+        return f"{self.service_fee.homeowner.username} - ₱{self.amount} - {self.status}"
+    
+    
 # Store the PIN for each resident/admin
 # class ResidentPin(models.Model):
 #     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="resident_pin")

@@ -1,0 +1,183 @@
+.paymongo-payment-container {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  max-width: 500px;
+  margin: 20px auto;
+}
+
+.paymongo-payment-container h3 {
+  margin-top: 0;
+  color: #2c7c4b;
+  text-align: center;
+  font-size: 1.3rem;
+}
+
+.payment-amount {
+  background: #f0f9ff;
+  padding: 15px;
+  border-radius: 6px;
+  text-align: center;
+  font-size: 1.2rem;
+  margin-bottom: 20px;
+  border: 2px solid #3b82f6;
+  color: #1e40af;
+}
+
+.payment-amount strong {
+  color: #1e3a8a;
+}
+
+.payment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group label {
+  margin-bottom: 5px;
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.95rem;
+}
+
+.form-group input,
+.form-group select {
+  padding: 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 1rem;
+  transition: border-color 0.2s;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-group small {
+  margin-top: 5px;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.pay-button {
+  background: #2c7c4b;
+  color: white;
+  padding: 14px 24px;
+  border: none;
+  border-radius: 6px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 10px;
+}
+
+.pay-button:hover:not(:disabled) {
+  background: #1f5a35;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(44, 124, 75, 0.3);
+}
+
+.pay-button:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.payment-info {
+  margin-top: 20px;
+  padding: 15px;
+  background: #f9fafb;
+  border-radius: 6px;
+  border-left: 4px solid #2c7c4b;
+}
+
+.payment-info p {
+  margin: 5px 0;
+  color: #4b5563;
+  font-size: 0.9rem;
+}
+
+.transaction-status {
+  margin-top: 20px;
+  padding: 15px;
+  background: #fef3c7;
+  border-radius: 6px;
+  border-left: 4px solid #f59e0b;
+}
+
+.transaction-status h4 {
+  margin-top: 0;
+  color: #92400e;
+}
+
+.transaction-status p {
+  margin: 5px 0;
+  color: #78350f;
+}
+
+.transaction-status strong {
+  color: #92400e;
+}
+
+.test-mode-badge {
+  display: inline-block;
+  background: #fef3c7;
+  color: #92400e;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-left: 10px;
+}
+
+.status-pending {
+  color: #f59e0b;
+  font-weight: 600;
+}
+
+.status-paid {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.status-failed {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.status-chargeable {
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+@media (max-width: 600px) {
+  .paymongo-payment-container {
+    margin: 10px;
+    padding: 15px;
+  }
+
+  .paymongo-payment-container h3 {
+    font-size: 1.1rem;
+  }
+
+  .payment-amount {
+    font-size: 1rem;
+    padding: 12px;
+  }
+
+  .pay-button {
+    padding: 12px 20px;
+    font-size: 1rem;
+  }
+}

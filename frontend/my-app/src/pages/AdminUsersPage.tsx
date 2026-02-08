@@ -11,6 +11,7 @@ import { useNotifications } from './NotificationContext';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { Link } from 'react-router-dom';
+import defaultUserImage from '../images/user.png';
 
 interface User {
   id: number;
@@ -599,17 +600,14 @@ const handleEditSave = async () => {
                     {filteredUsers.map(user => (
                       <tr key={user.id} className={user.is_staff ? 'admin-row' : ''}>
                         <td>
-                          {user.profile?.profile_image ? (
-                            <img
-                              src={user.profile.profile_image}
-                              alt={user.username}
-                              className="profile-thumb"
-                            />
-                          ) : (
-                            <div className="profile-thumb-placeholder">
-                              {user.username.charAt(0).toUpperCase()}
-                            </div>
-                          )}
+                          <img
+                            src={user.profile?.profile_image || defaultUserImage}
+                            alt={user.username}
+                            className="profile-thumb"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = defaultUserImage;
+                            }}
+                          />
                         </td>
                         <td style={{ fontWeight: 600, color: '#2c3e50' }}>{user.id}</td>
                         <td style={{ fontWeight: 500 }}>{user.username}</td>

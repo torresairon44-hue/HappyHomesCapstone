@@ -29,6 +29,16 @@ interface ServiceFee {
   notes?: string;
   created_at: string;
   updated_at: string;
+  has_paymongo_transaction?: boolean;
+  latest_transaction?: {
+    reference_number: string;
+    checkout_url: string;
+    amount: number;
+    paid: boolean;
+    paid_at?: string;
+    status_icon: string;
+    created_at: string;
+  };
 }
 
 const Billing: React.FC = () => {
@@ -324,12 +334,12 @@ const Billing: React.FC = () => {
                 <table className="bills-table">
                   <thead>
                     <tr>
+                      <th style={{width: '120px'}}>Reference #</th>
                       <th>Period</th>
                       <th>Amount</th>
                       <th>Due Date</th>
                       <th>Status</th>
-                      <th>Images</th>
-                      <th>Receipt Upload</th>
+                      <th>Payment</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -339,6 +349,29 @@ const Billing: React.FC = () => {
                           className="bill-row"
                           onClick={() => toggleExpand(serviceFee.id)}
                         >
+                          <td>
+                            {serviceFee.latest_transaction ? (
+                              <div>
+                                <div style={{ 
+                                  fontWeight: 'bold', 
+                                  color: '#10b981', 
+                                  fontSize: '0.9rem',
+                                  marginBottom: '3px' 
+                                }}>
+                                  {serviceFee.latest_transaction.reference_number}
+                                </div>
+                                <div style={{ 
+                                  fontSize: '0.7rem', 
+                                  color: '#6b7280' 
+                                }}>
+                                  {serviceFee.latest_transaction.created_at && 
+                                    new Date(serviceFee.latest_transaction.created_at).toLocaleDateString()}
+                                </div>
+                              </div>
+                            ) : (
+                              <span style={{ color: '#9ca3af', fontSize: '0.8rem' }}>-</span>
+                            )}
+                          </td>
                           <td>{serviceFee.month || 'Monthly'} {serviceFee.year || ''}</td>
                           <td>{formatCurrency(serviceFee.amount)}</td>
                           <td>{formatDate(serviceFee.due_date)}</td>
@@ -352,44 +385,43 @@ const Billing: React.FC = () => {
                             </span>
                           </td>
                           <td>
-                            <div className="table-images">
-                              {serviceFee.bill_image && (
-                                <a href={serviceFee.bill_image} target="_blank" rel="noopener noreferrer" title="Bill Image">
-                                  <ImageIcon style={{ fontSize: '18px', color: '#3b82f6' }} />
-                                </a>
-                              )}
-                              {serviceFee.policy_image && (
-                                <a href={serviceFee.policy_image} target="_blank" rel="noopener noreferrer" title="Policy Document">
-                                  <DescriptionIcon style={{ fontSize: '18px', color: '#10b981' }} />
-                                </a>
-                              )}
-                              {serviceFee.receipt_image && (
-                                <a href={serviceFee.receipt_image} target="_blank" rel="noopener noreferrer" title="Receipt">
-                                  <ReceiptIcon style={{ fontSize: '18px', color: '#f59e0b' }} />
-                                </a>
-                              )}
-                              {!serviceFee.bill_image && !serviceFee.policy_image && !serviceFee.receipt_image && (
-                                <span style={{ color: '#9ca3af', fontSize: '0.85rem' }}>None</span>
-                              )}
-                            </div>
-                          </td>
-                          <td>
-                            {serviceFee.receipt_image ? (
-                              <span style={{ color: '#10b981', fontSize: '0.85rem' }}>Uploaded</span>
-                            ) : (
-                              <label className="upload-receipt-button-small">
-                                <UploadFileIcon style={{ fontSize: '16px' }} />
-                                <input
-                                  key={fileInputKeys[serviceFee.id] || 0}
-                                  type="file"
-                                  accept="image/*"
-                                  onChange={(e) => {
-                                    e.stopPropagation();
-                                    handleReceiptFileChange(serviceFee.id, e);
+                            {serviceFee.latest_transaction ? (
+                              serviceFee.latest_transaction.paid ? (
+                                <span style={{ 
+                                  color: '#10b981', 
+                                  fontWeight: 'bold', 
+                                  fontSize: '0.9rem',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}>
+                                  ✅ PAID
+                                </span>
+                              ) : (
+                                <a
+                                  href={serviceFee.latest_transaction.checkout_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{
+                                    background: '#2c7c4b',
+                                    color: 'white',
+                                    padding: '6px 12px',
+                                    borderRadius: '6px',
+                                    textDecoration: 'none',
+                                    fontSize: '0.85rem',
+                                    fontWeight: 'bold',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
                                   }}
-                                  style={{ display: 'none' }}
-                                />
-                              </label>
+                                  title="Click to see QR code for GCash/PayMaya payment"
+                                >
+                                  📱 Pay via QR
+                                </a>
+                              )
+                            ) : (
+                              <span style={{ color: '#9ca3af', fontSize: '0.85rem' }}>N/A</span>
                             )}
                           </td>
                         </tr>
@@ -403,177 +435,115 @@ const Billing: React.FC = () => {
                                     <p>{serviceFee.notes}</p>
                                   </div>
                                 )}
-                                <div className="images-section">
-                                  {serviceFee.bill_image && (
-                                    <div className="bill-image-section">
-                                      <h4 
-                                        onClick={() => toggleImageVisibility(serviceFee.id, 'bill')}
-                                        className="image-section-header"
-                                      >
-                                        <ImageIcon /> Bill Image
-                                        <span className="toggle-icon">
-                                          {(visibleImages[serviceFee.id]?.bill !== false) ? '−' : '+'}
-                                        </span>
-                                      </h4>
-                                      {(visibleImages[serviceFee.id]?.bill !== false) && (
-                                        <div className="bill-image-container">
-                                          <a href={serviceFee.bill_image} target="_blank" rel="noopener noreferrer">
-                                            <img src={serviceFee.bill_image} alt="Service Fee Bill" className="bill-image" />
-                                          </a>
-                                          <p className="image-hint">Click to view full size</p>
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                  {serviceFee.policy_image && (
-                                    <div className="bill-image-section">
-                                      <h4 
-                                        onClick={() => toggleImageVisibility(serviceFee.id, 'policy')}
-                                        className="image-section-header"
-                                      >
-                                        <ImageIcon /> Policy Document
-                                        <span className="toggle-icon">
-                                          {(visibleImages[serviceFee.id]?.policy !== false) ? '−' : '+'}
-                                        </span>
-                                      </h4>
-                                      {(visibleImages[serviceFee.id]?.policy !== false) && (
-                                        <div className="bill-image-container">
-                                          <a href={serviceFee.policy_image} target="_blank" rel="noopener noreferrer">
-                                            <img src={serviceFee.policy_image} alt="Policy Document" className="bill-image" />
-                                          </a>
-                                          <p className="image-hint">Click to view full size</p>
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                  <div className="bill-image-section">
-                                    <h4 
-                                      onClick={() => toggleImageVisibility(serviceFee.id, 'receipt')}
-                                      className="image-section-header"
-                                    >
-                                      <ReceiptIcon /> Payment Receipt
-                                      <span className="toggle-icon">
-                                        {(visibleImages[serviceFee.id]?.receipt !== false) ? '−' : '+'}
-                                      </span>
+                                
+                                {/* Payment Link Section */}
+                                {serviceFee.latest_transaction && (
+                                  <div style={{
+                                    background: serviceFee.latest_transaction.paid ? '#f0fdf4' : '#f0f9ff',
+                                    padding: '25px',
+                                    borderRadius: '12px',
+                                    border: serviceFee.latest_transaction.paid ? '2px solid #10b981' : '2px solid #3b82f6',
+                                    marginTop: '15px'
+                                  }}>
+                                    <h4 style={{margin: '0 0 15px 0', color: serviceFee.latest_transaction.paid ? '#10b981' : '#1e40af', fontSize: '1.2rem'}}>
+                                      {serviceFee.latest_transaction.paid ? '✅ Payment Completed' : '💳 Online Payment'}
                                     </h4>
-                                    {(visibleImages[serviceFee.id]?.receipt !== false) && (
+                                    
+                                    <div style={{
+                                      fontSize: '1.4rem',
+                                      fontWeight: 'bold',
+                                      color: '#1e3a8a',
+                                      margin: '15px 0'
+                                    }}>
+                                      Amount: ₱{serviceFee.latest_transaction.amount.toFixed(2)}
+                                    </div>
+                                    
+                                    <div style={{
+                                      fontSize: '0.95rem',
+                                      color: '#6b7280',
+                                      marginBottom: '20px'
+                                    }}>
+                                      Reference: <strong style={{ color: '#10b981', fontSize: '1.1rem' }}>
+                                        {serviceFee.latest_transaction.reference_number}
+                                      </strong>
+                                    </div>
+                                    
+                                    {serviceFee.latest_transaction.paid ? (
+                                      <div style={{
+                                        background: '#10b981',
+                                        color: 'white',
+                                        padding: '15px 25px',
+                                        borderRadius: '8px',
+                                        fontWeight: 'bold',
+                                        textAlign: 'center',
+                                        fontSize: '1.1rem'
+                                      }}>
+                                        ✅ PAID - {serviceFee.latest_transaction.paid_at ? new Date(serviceFee.latest_transaction.paid_at).toLocaleString() : ''}
+                                      </div>
+                                    ) : (
                                       <div>
-                                        {serviceFee.receipt_image ? (
-                                          <div className="bill-image-container">
-                                            <a href={serviceFee.receipt_image} target="_blank" rel="noopener noreferrer">
-                                              <img src={serviceFee.receipt_image} alt="Payment Receipt" className="bill-image" />
-                                            </a>
-                                            <p className="image-hint">Click to view full size</p>
-                                            <div className="receipt-upload-controls">
-                                              <label className="upload-receipt-button">
-                                                <UploadFileIcon /> Replace Receipt
-                                                <input
-                                                  key={fileInputKeys[serviceFee.id] || 0}
-                                                  type="file"
-                                                  accept="image/*"
-                                                  onChange={(e) => handleReceiptFileChange(serviceFee.id, e)}
-                                                  style={{ display: 'none' }}
-                                                />
-                                              </label>
-                                              {receiptFile[serviceFee.id] && (
-                                                <>
-                                                  <button
-                                                    type="button"
-                                                    className="submit-receipt-button"
-                                                    onClick={() => handleUploadReceipt(serviceFee.id)}
-                                                    disabled={uploadingReceipt === serviceFee.id}
-                                                  >
-                                                    {uploadingReceipt === serviceFee.id ? 'Uploading...' : 'Upload Receipt'}
-                                                  </button>
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                      setReceiptFile({ ...receiptFile, [serviceFee.id]: null });
-                                                      setFileInputKeys({ ...fileInputKeys, [serviceFee.id]: (fileInputKeys[serviceFee.id] || 0) + 1 });
-                                                    }}
-                                                    style={{ marginLeft: '10px', padding: '5px 10px', cursor: 'pointer' }}
-                                                  >
-                                                    Clear
-                                                  </button>
-                                                </>
-                                              )}
-                                            </div>
-                                          </div>
-                                        ) : (
-                                          <div className="receipt-upload-area">
-                                            <p>Upload your payment receipt here</p>
-                                            <label className="upload-receipt-button">
-                                              <UploadFileIcon /> Choose Receipt Image
-                                              <input
-                                                key={fileInputKeys[serviceFee.id] || 0}
-                                                type="file"
-                                                accept="image/*"
-                                                onChange={(e) => handleReceiptFileChange(serviceFee.id, e)}
-                                                style={{ display: 'none' }}
-                                              />
-                                            </label>
-                                            {receiptFile[serviceFee.id] && (
-                                              <div className="receipt-file-info">
-                                                <p>Selected: {receiptFile[serviceFee.id]?.name}</p>
-                                                <button
-                                                  type="button"
-                                                  className="submit-receipt-button"
-                                                  onClick={() => handleUploadReceipt(serviceFee.id)}
-                                                  disabled={uploadingReceipt === serviceFee.id}
-                                                >
-                                                  {uploadingReceipt === serviceFee.id ? 'Uploading...' : 'Upload Receipt'}
-                                                </button>
-                                                <button
-                                                  type="button"
-                                                  onClick={() => {
-                                                    setReceiptFile({ ...receiptFile, [serviceFee.id]: null });
-                                                    setFileInputKeys({ ...fileInputKeys, [serviceFee.id]: (fileInputKeys[serviceFee.id] || 0) + 1 });
+                                        <a
+                                          href={serviceFee.latest_transaction.checkout_url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          style={{
+                                                    display: 'inline-block',
+                                                    background: '#2c7c4b',
+                                                    color: 'white',
+                                                    padding: '16px 40px',
+                                                    borderRadius: '8px',
+                                                    textDecoration: 'none',
+                                                    fontWeight: 'bold',
+                                                    fontSize: '1.2rem',
+                                                    transition: 'all 0.2s',
+                                                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
                                                   }}
-                                                  style={{ marginLeft: '10px', padding: '5px 10px', cursor: 'pointer' }}
+                                                  onMouseOver={(e) => e.currentTarget.style.background = '#1f5a35'}
+                                                  onMouseOut={(e) => e.currentTarget.style.background = '#2c7c4b'}
                                                 >
-                                                  Clear
-                                                </button>
+                                                  📱 Pay Now - Scan QR Code
+                                                </a>
+                                                
+                                                <div style={{
+                                                  marginTop: '15px',
+                                                  padding: '12px',
+                                                  background: '#fff7ed',
+                                                  border: '2px solid #fb923c',
+                                                  borderRadius: '8px',
+                                                  fontSize: '0.9rem',
+                                                  color: '#9a3412'
+                                                }}>
+                                                  <div style={{ fontWeight: 'bold', marginBottom: '8px', fontSize: '1rem' }}>
+                                                    📱 How to Pay with QR Code:
+                                                  </div>
+                                                  <ol style={{ margin: '5px 0', paddingLeft: '20px' }}>
+                                                    <li>Click "Pay Now - Scan QR Code" button above</li>
+                                                    <li>You'll see a <strong>QR code</strong> on the payment page</li>
+                                                    <li>Open your GCash or PayMaya app</li>
+                                                    <li>Scan the QR code with your phone camera</li>
+                                                    <li>Confirm payment - Status updates automatically!</li>
+                                                  </ol>
+                                                </div>
                                               </div>
                                             )}
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
+                                            
+                                            <div style={{
+                                              marginTop: '20px',
+                                              padding: '15px',
+                                              background: '#f0fdf4',
+                                              border: '2px solid #10b981',
+                                              borderRadius: '8px',
+                                              fontSize: '0.9rem',
+                                              color: '#166534'
+                                            }}>
+                                              <p style={{margin: '5px 0', fontWeight: '600'}}>✅ Secure payment via PayMongo</p>
+                                              <p style={{margin: '5px 0', fontWeight: '600'}}>✅ Scan QR Code with GCash/PayMaya/QR Ph</p>
+                                              <p style={{margin: '5px 0', fontWeight: '600'}}>✅ Or pay with Credit Card, Online Banking</p>
+                                              <p style={{margin: '5px 0', fontWeight: '600'}}>✅ Status updates automatically after payment</p>
+                                              <p style={{margin: '5px 0', fontWeight: '600'}}>✅ Reference: <strong>{serviceFee.latest_transaction.reference_number}</strong></p>
+                                            </div>
                                   </div>
-                                </div>
-                                <div className="bill-footer">
-                                  <small>Created: {new Date(serviceFee.created_at).toLocaleString()}</small>
-                                  {serviceFee.updated_at !== serviceFee.created_at && (
-                                    <small>Updated: {new Date(serviceFee.updated_at).toLocaleString()}</small>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                        {receiptFile[serviceFee.id] && expandedId !== serviceFee.id && (
-                          <tr className="receipt-upload-row">
-                            <td colSpan={6}>
-                              <div className="receipt-upload-inline">
-                                <p>Selected: {receiptFile[serviceFee.id]?.name}</p>
-                                <button
-                                  type="button"
-                                  className="submit-receipt-button"
-                                  onClick={() => handleUploadReceipt(serviceFee.id)}
-                                  disabled={uploadingReceipt === serviceFee.id}
-                                >
-                                  {uploadingReceipt === serviceFee.id ? 'Uploading...' : 'Upload Receipt'}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setReceiptFile({ ...receiptFile, [serviceFee.id]: null });
-                                    setFileInputKeys({ ...fileInputKeys, [serviceFee.id]: (fileInputKeys[serviceFee.id] || 0) + 1 });
-                                  }}
-                                  style={{ marginLeft: '10px', padding: '5px 10px', cursor: 'pointer' }}
-                                >
-                                  Clear
-                                </button>
+                                )}
                               </div>
                             </td>
                           </tr>

@@ -4032,62 +4032,56 @@ class ServiceFeeViewSet(viewsets.ModelViewSet):
         return obj
 
     def perform_create(self, serializer):
-        """Create service fee and send email notification to homeowner"""
+        """Create service fee + auto-generate payment link + send emails"""
+        from .simple_paymongo import simple_paymongo
+        from .models import PaymentLink
+        
         try:
             service_fee = serializer.save()
         except Exception as e:
             print(f"Error saving service fee: {e}")
             raise
         
-        # Send email notification to homeowner (non-blocking)
-        if service_fee.homeowner and service_fee.homeowner.email:
+        # Auto-create payment link if amount exists
+        if service_fee.amount:
             try:
-                from django.template.loader import render_to_string
-                from django.utils.html import strip_tags
+                description = f"{service_fee.month or 'Monthly'} {service_fee.year or ''} Fee - {service_fee.homeowner.username}"
                 
-                subject = f"New Service Fee Bill - {service_fee.month or 'Monthly'} {service_fee.year or ''}"
-                
-                # Create email content
-                context = {
-                    'homeowner_name': service_fee.homeowner.username or 'Homeowner',
-                    'amount': service_fee.amount or 'N/A',
-                    'due_date': service_fee.due_date.strftime('%Y-%m-%d') if service_fee.due_date else 'N/A',
-                    'month': service_fee.month or 'N/A',
-                    'year': service_fee.year or '',
-                    'status': service_fee.get_status_display(),
-                    'frontend_url': getattr(settings, 'FRONTEND_URL', 'http://localhost:3000'),
-                }
-                
-                html_message = f"""
-                <html>
-                <body>
-                    <h2>New Service Fee Bill</h2>
-                    <p>Dear {context['homeowner_name']},</p>
-                    <p>A new service fee bill has been uploaded for your account.</p>
-                    <p><strong>Amount:</strong> ₱{context['amount']}</p>
-                    <p><strong>Due Date:</strong> {context['due_date']}</p>
-                    <p><strong>Billing Period:</strong> {context['month']} {context['year']}</p>
-                    <p><strong>Status:</strong> {context['status']}</p>
-                    <p>Please log in to your account to view the bill and make payment.</p>
-                    <p><a href="{context['frontend_url']}/billing">View Your Bills</a></p>
-                    <p>Thank you,<br>Happy Homes Administration</p>
-                </body>
-                </html>
-                """
-                
-                plain_message = strip_tags(html_message)
-                
-                send_mail(
-                    subject=subject,
-                    message=plain_message,
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[service_fee.homeowner.email],
-                    html_message=html_message,
-                    fail_silently=True,  # Don't fail if email can't be sent
+                # Generate payment link
+                result = simple_paymongo.create_payment_link(
+                    amount=service_fee.amount,
+                    description=description
                 )
+                
+                if result.get('success'):
+                    # Save payment link
+                    PaymentLink.objects.create(
+                        service_fee=service_fee,
+                        link_id=result['link_id'],
+                        reference_number=result['reference_number'],
+                        checkout_url=result['checkout_url'],
+                        amount=service_fee.amount
+                    )
+                    
+                    print(f"✅ Payment link created: {result['reference_number']}")
+                    
+                    # Send email to homeowner with payment link
+                    if service_fee.homeowner.email:
+                        simple_paymongo.send_payment_email(
+                            to_email=service_fee.homeowner.email,
+                            homeowner_name=service_fee.homeowner.username,
+                            amount=service_fee.amount,
+                            due_date=service_fee.due_date.strftime('%B %d, %Y') if service_fee.due_date else 'N/A',
+                            reference=result['reference_number'],
+                            checkout_url=result['checkout_url']
+                        )
+                else:
+                    print(f"⚠️ Payment link creation failed: {result.get('error')}")
+                    
             except Exception as e:
-                print(f"Error sending email notification: {e}")
-                # Don't raise - email failure shouldn't prevent service fee creation
+                print(f"⚠️ Error creating payment link: {e}")
+                import traceback
+                traceback.print_exc()
 
     def perform_update(self, serializer):
         """Update service fee and notify if status changes"""
@@ -5559,4 +5553,138 @@ class MaintenanceProviderViewSet(viewsets.ModelViewSet):
         """Set created_by when creating a provider"""
         serializer.save(created_by=self.request.user)
 
+
+# ==================== GUARD ENDPOINTS ====================
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def guard_login(request):
+    """Guard login endpoint - returns token"""
+    from django.contrib.auth import authenticate
+    from rest_framework.authtoken.models import Token
+    
+    username = request.data.get('username')
+    password = request.data.get('password')
+    
+    if not username or not password:
+        return Response({'error': 'Username and password required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    user = authenticate(username=username, password=password)
+    
+    if user and (user.is_staff or user.groups.filter(name='Guard').exists()):
+        token, _ = Token.objects.get_or_create(user=user)
+        return Response({
+            'token': token.key,
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'is_guard': True
+            }
+        })
+    
+    return Response({'error': 'Invalid credentials or not authorized as guard'}, status=status.HTTP_401_UNAUTHORIZED)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def guard_walk_in(request):
+    """Register walk-in visitor"""
+    from .models import Visitor
+    from .serializers import VisitorSerializer
+    
+    try:
+        visitor = Visitor.objects.create(
+            name=request.data.get('name'),
+            gmail=request.data.get('gmail', ''),
+            contact_number=request.data.get('contact_number'),
+            address=request.data.get('address'),
+            homeowner_name=request.data.get('homeowner_name'),
+            reason=request.data.get('reason'),
+            status='approved',
+            time_in=timezone.now()
+        )
+        return Response(VisitorSerializer(visitor).data, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def guard_active_visitors(request):
+    """Get all currently active visitors"""
+    from .models import Visitor, VisitorRequest
+    from .serializers import VisitorSerializer, VisitorRequestSerializer
+    
+    # Walk-in visitors (no checkout time)
+    walk_ins = Visitor.objects.filter(time_out__isnull=True, time_in__isnull=False)
+    
+    # Scheduled visitors (PIN verified, not checked out)
+    scheduled = VisitorRequest.objects.filter(
+        pin_entered_at__isnull=False,
+        status='approved'
+    ).exclude(
+        visitor_record__time_out__isnull=False
+    )
+    
+    return Response({
+        'walk_ins': VisitorSerializer(walk_ins, many=True).data,
+        'scheduled': VisitorRequestSerializer(scheduled, many=True, context={'request': request}).data
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def guard_checkin_pin(request, request_id):
+    """Check in visitor with verified PIN"""
+    from .models import Visitor, VisitorRequest
+    
+    try:
+        visitor_request = VisitorRequest.objects.get(id=request_id)
+        visitor_request.pin_entered_at = timezone.now()
+        visitor_request.save()
+        
+        # Create or update visitor record
+        if not visitor_request.visitor_record:
+            visitor = Visitor.objects.create(
+                name=visitor_request.visitor_name,
+                gmail=visitor_request.visitor_email,
+                contact_number=visitor_request.visitor_contact_number,
+                reason=visitor_request.reason or 'Scheduled visit',
+                status='approved',
+                time_in=timezone.now()
+            )
+            visitor_request.visitor_record = visitor
+            visitor_request.save()
+        
+        return Response({'message': 'Visitor checked in successfully'})
+    except VisitorRequest.DoesNotExist:
+        return Response({'error': 'Visitor request not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def guard_checkout(request, visitor_id):
+    """Checkout visitor"""
+    from .models import Visitor, VisitorRequest
+    
+    visitor_type = request.query_params.get('type', 'walkin')
+    
+    try:
+        if visitor_type == 'walkin':
+            visitor = Visitor.objects.get(id=visitor_id)
+            visitor.time_out = timezone.now()
+            visitor.save()
+        else:  # scheduled
+            visitor_request = VisitorRequest.objects.get(id=visitor_id)
+            if visitor_request.visitor_record:
+                visitor_request.visitor_record.time_out = timezone.now()
+                visitor_request.visitor_record.save()
+        
+        return Response({'message': 'Visitor checked out successfully'})
+    except (Visitor.DoesNotExist, VisitorRequest.DoesNotExist):
+        return Response({'error': 'Visitor not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

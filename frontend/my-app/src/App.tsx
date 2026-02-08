@@ -41,6 +41,8 @@ import AdminFAQ from './pages/AdminFAQ';
 import AdminBulletin from './pages/AdminBulletin';
 import MaintenanceRequestPage from './pages/MaintenanceRequestPage';
 import AdminMaintenanceRequests from './pages/AdminMaintenanceRequests';
+import GuardLogin from './pages/GuardLogin';
+import GuardDashboard from './pages/GuardDashboard';
 
 function AppContent() {
   const location = useLocation();
@@ -95,6 +97,8 @@ function AppContent() {
       <Route path="/faq" element={<FAQ />} />   {/* FAQ page */}
       <Route path="/maintenance-request" element={<MaintenanceRequestPage />} />   {/* Maintenance Request page */}
       <Route path="/admin-maintenance-requests" element={<AdminMaintenanceRequests />} />   {/* Admin Maintenance Requests page */}
+      <Route path="/guard-login" element={<GuardLogin />} />   {/* Guard Login page */}
+      <Route path="/guard-dashboard" element={<GuardDashboard />} />   {/* Guard Dashboard page */}
       {/* Redirect unknown routes */}
       <Route path="*" element={<LoginPage />} />
     </Routes>

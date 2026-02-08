@@ -158,28 +158,58 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = ['profile_image', 'contact_number', 'is_verified', 'document', 'billing_records']
 
     def get_profile_image(self, obj):
-        request = self.context.get('request')
-        if obj.profile_image:
-            return request.build_absolute_uri(obj.profile_image.url) if request else obj.profile_image.url
+        try:
+            request = self.context.get('request')
+            if obj and obj.profile_image:
+                return request.build_absolute_uri(obj.profile_image.url) if request else obj.profile_image.url
+        except Exception:
+            pass
         return None
 
     def get_document(self, obj):
-        request = self.context.get('request')
-        if obj.document:
-            return request.build_absolute_uri(obj.document.url) if request else obj.document.url
+        try:
+            request = self.context.get('request')
+            if obj and obj.document:
+                return request.build_absolute_uri(obj.document.url) if request else obj.document.url
+        except Exception:
+            pass
         return None
 
     def get_billing_records(self, obj):
-        request = self.context.get('request')
-        return [request.build_absolute_uri(b.file.url) if request else b.file.url for b in obj.billing_records.all()]
+        try:
+            request = self.context.get('request')
+            if obj:
+                return [request.build_absolute_uri(b.file.url) if request else b.file.url for b in obj.billing_records.all()]
+        except Exception:
+            pass
+        return []
 
 
 class UserSerializer(serializers.ModelSerializer):
-    profile = UserProfileSerializer(read_only=True)
+    profile = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'is_staff', 'profile']
+    
+    def get_profile(self, obj):
+        """Safely get user profile, create if doesn't exist"""
+        try:
+            if hasattr(obj, 'profile'):
+                return UserProfileSerializer(obj.profile, context=self.context).data
+            else:
+                # Create profile if it doesn't exist
+                profile = UserProfile.objects.create(user=obj)
+                return UserProfileSerializer(profile, context=self.context).data
+        except Exception as e:
+            # Return default profile data if error
+            return {
+                'profile_image': None,
+                'contact_number': '',
+                'is_verified': False,
+                'document': None,
+                'billing_records': []
+            }
 
 class FacilitySerializer(serializers.ModelSerializer):
     class Meta:
@@ -783,6 +813,8 @@ class ServiceFeeSerializer(serializers.ModelSerializer):
     homeowner_name = serializers.CharField(source='homeowner.username', read_only=True)
     homeowner_email = serializers.CharField(source='homeowner.email', read_only=True)
     homeowner_id = serializers.IntegerField(source='homeowner.id', read_only=True)
+    has_paymongo_transaction = serializers.SerializerMethodField()
+    latest_transaction = serializers.SerializerMethodField()
 
     class Meta:
         model = ServiceFee
@@ -791,7 +823,8 @@ class ServiceFeeSerializer(serializers.ModelSerializer):
             'bill_image', 'receipt_image', 'policy_image',
             'bill_image_url', 'receipt_image_url', 'policy_image_url',
             'amount', 'due_date', 'status', 'month', 'year', 
-            'notes', 'created_at', 'updated_at'
+            'notes', 'has_paymongo_transaction', 'latest_transaction',
+            'created_at', 'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at', 'homeowner_id', 'homeowner_name', 'homeowner_email']
 
@@ -811,6 +844,35 @@ class ServiceFeeSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if obj.policy_image:
             return request.build_absolute_uri(obj.policy_image.url) if request else obj.policy_image.url
+        return None
+    
+    def get_has_paymongo_transaction(self, obj):
+        """Check if this service fee has any PayMongo transactions"""
+        try:
+            return obj.paymongo_transactions.exists()
+        except:
+            return False
+    
+    def get_latest_transaction(self, obj):
+        """Get payment link info with auto-overdue check"""
+        try:
+            # Auto-check if overdue
+            obj.check_if_overdue()
+            
+            if hasattr(obj, 'payment_link'):
+                link = obj.payment_link
+                return {
+                    'reference_number': link.reference_number,
+                    'checkout_url': link.checkout_url,
+                    'amount': float(link.amount),
+                    'paid': link.paid,
+                    'paid_at': link.paid_at,
+                    'status_icon': obj.get_status_display_with_icon(),
+                    'created_at': link.created_at
+                }
+        except Exception as e:
+            print(f"Error getting transaction: {e}")
+            pass
         return None
 
     def to_representation(self, instance):

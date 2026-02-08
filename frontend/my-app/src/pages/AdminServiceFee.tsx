@@ -18,11 +18,8 @@ import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
-import ImageIcon from '@mui/icons-material/Image';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import PersonIcon from '@mui/icons-material/Person';
-import DescriptionIcon from '@mui/icons-material/Description';
-import ReceiptIcon from '@mui/icons-material/Receipt';
 
 interface ServiceFee {
   id?: number;
@@ -41,6 +38,16 @@ interface ServiceFee {
   notes?: string;
   created_at?: string;
   updated_at?: string;
+  has_paymongo_transaction?: boolean;
+  latest_transaction?: {
+    reference_number: string;
+    checkout_url: string;
+    amount: number;
+    paid: boolean;
+    paid_at?: string;
+    status_icon: string;
+    created_at: string;
+  };
 }
 
 interface Homeowner {
@@ -67,15 +74,7 @@ const AdminServiceFee: React.FC = () => {
     year: new Date().getFullYear(),
     notes: '',
   });
-  const [billImageFile, setBillImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [fileInputKey, setFileInputKey] = useState<number>(0);
-  const [policyImageFile, setPolicyImageFile] = useState<File | null>(null);
-  const [policyImagePreview, setPolicyImagePreview] = useState<string | null>(null);
-  const [policyFileInputKey, setPolicyFileInputKey] = useState<number>(0);
-  const [receiptImageFile, setReceiptImageFile] = useState<File | null>(null);
-  const [receiptImagePreview, setReceiptImagePreview] = useState<string | null>(null);
-  const [receiptFileInputKey, setReceiptFileInputKey] = useState<number>(0);
+
 
   useEffect(() => {
     fetchServiceFees();
@@ -158,51 +157,6 @@ const AdminServiceFee: React.FC = () => {
     }));
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setBillImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setBillImageFile(null);
-      setImagePreview(null);
-    }
-  };
-
-  const handlePolicyImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setPolicyImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPolicyImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setPolicyImageFile(null);
-      setPolicyImagePreview(null);
-    }
-  };
-
-  const handleReceiptImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setReceiptImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setReceiptImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setReceiptImageFile(null);
-      setReceiptImagePreview(null);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -220,15 +174,6 @@ const AdminServiceFee: React.FC = () => {
       if (formData.month) formDataToSend.append('month', formData.month);
       if (formData.year) formDataToSend.append('year', formData.year.toString());
       if (formData.notes) formDataToSend.append('notes', formData.notes);
-      if (billImageFile) {
-        formDataToSend.append('bill_image', billImageFile);
-      }
-      if (policyImageFile) {
-        formDataToSend.append('policy_image', policyImageFile);
-      }
-      if (receiptImageFile) {
-        formDataToSend.append('receipt_image', receiptImageFile);
-      }
 
       if (editingId) {
         await axios.patch(`${API_URL}/service-fees/${editingId}/`, formDataToSend, {
@@ -257,15 +202,6 @@ const AdminServiceFee: React.FC = () => {
         year: new Date().getFullYear(),
         notes: '',
       });
-      setBillImageFile(null);
-      setImagePreview(null);
-      setFileInputKey(prev => prev + 1);
-      setPolicyImageFile(null);
-      setPolicyImagePreview(null);
-      setPolicyFileInputKey(prev => prev + 1);
-      setReceiptImageFile(null);
-      setReceiptImagePreview(null);
-      setReceiptFileInputKey(prev => prev + 1);
       fetchServiceFees();
     } catch (err: any) {
       console.error('Error saving service fee:', err);
@@ -290,12 +226,6 @@ const AdminServiceFee: React.FC = () => {
       year: serviceFee.year || new Date().getFullYear(),
       notes: serviceFee.notes || '',
     });
-    setImagePreview(serviceFee.bill_image || null);
-    setBillImageFile(null);
-    setPolicyImagePreview(serviceFee.policy_image || null);
-    setPolicyImageFile(null);
-    setReceiptImagePreview(serviceFee.receipt_image || null);
-    setReceiptImageFile(null);
     setShowAddForm(true);
   };
 
@@ -331,15 +261,6 @@ const AdminServiceFee: React.FC = () => {
       year: new Date().getFullYear(),
       notes: '',
     });
-    setBillImageFile(null);
-    setImagePreview(null);
-    setFileInputKey(prev => prev + 1);
-    setPolicyImageFile(null);
-    setPolicyImagePreview(null);
-    setPolicyFileInputKey(prev => prev + 1);
-    setReceiptImageFile(null);
-    setReceiptImagePreview(null);
-    setReceiptFileInputKey(prev => prev + 1);
   };
 
   const getStatusColor = (status: string) => {
@@ -544,21 +465,6 @@ const AdminServiceFee: React.FC = () => {
                       </td>
                     </tr>
                     <tr>
-                      <td><label>Status *</label></td>
-                      <td>
-                        <select
-                          name="status"
-                          value={formData.status}
-                          onChange={handleInputChange}
-                          required
-                        >
-                          <option value="unpaid">Unpaid</option>
-                          <option value="paid">Paid</option>
-                          <option value="delayed">Delayed</option>
-                        </select>
-                      </td>
-                    </tr>
-                    <tr>
                       <td><label>Notes</label></td>
                       <td>
                         <textarea
@@ -569,115 +475,6 @@ const AdminServiceFee: React.FC = () => {
                           placeholder="Additional notes or description..."
                           style={{ width: '100%' }}
                         />
-                      </td>
-                    </tr>
-                    <tr>
-                      <td><label>Images</label></td>
-                      <td>
-                        <div className="form-images-container">
-                          <div className="form-image-section">
-                            <label className="form-image-label">
-                              <ImageIcon /> Bill Image
-                            </label>
-                            <label className="upload-button">
-                              <ImageIcon style={{ marginRight: '8px' }} /> Choose Bill Image
-                              <input
-                                key={fileInputKey}
-                                type="file"
-                                accept="image/*"
-                                onChange={handleImageChange}
-                                style={{ display: 'none' }}
-                              />
-                            </label>
-                            {billImageFile && (
-                              <p className="selected-file">Selected: {billImageFile.name}</p>
-                            )}
-                            {imagePreview && (
-                              <div className="form-image-preview">
-                                <img src={imagePreview} alt="Bill preview" />
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setImagePreview(null);
-                                    setBillImageFile(null);
-                                    setFileInputKey(prev => prev + 1);
-                                  }}
-                                  className="remove-image-button"
-                                >
-                                  Remove
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                          <div className="form-image-section">
-                            <label className="form-image-label">
-                              <DescriptionIcon /> Policy Image
-                            </label>
-                            <label className="upload-button">
-                              <DescriptionIcon style={{ marginRight: '8px' }} /> Choose Policy Image
-                              <input
-                                key={policyFileInputKey}
-                                type="file"
-                                accept="image/*"
-                                onChange={handlePolicyImageChange}
-                                style={{ display: 'none' }}
-                              />
-                            </label>
-                            {policyImageFile && (
-                              <p className="selected-file">Selected: {policyImageFile.name}</p>
-                            )}
-                            {policyImagePreview && (
-                              <div className="form-image-preview">
-                                <img src={policyImagePreview} alt="Policy preview" />
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setPolicyImagePreview(null);
-                                    setPolicyImageFile(null);
-                                    setPolicyFileInputKey(prev => prev + 1);
-                                  }}
-                                  className="remove-image-button"
-                                >
-                                  Remove
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                          <div className="form-image-section">
-                            <label className="form-image-label">
-                              <ReceiptIcon /> Receipt Image
-                            </label>
-                            <label className="upload-button">
-                              <ReceiptIcon style={{ marginRight: '8px' }} /> Choose Receipt Image
-                              <input
-                                key={receiptFileInputKey}
-                                type="file"
-                                accept="image/*"
-                                onChange={handleReceiptImageChange}
-                                style={{ display: 'none' }}
-                              />
-                            </label>
-                            {receiptImageFile && (
-                              <p className="selected-file">Selected: {receiptImageFile.name}</p>
-                            )}
-                            {receiptImagePreview && (
-                              <div className="form-image-preview">
-                                <img src={receiptImagePreview} alt="Receipt preview" />
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setReceiptImagePreview(null);
-                                    setReceiptImageFile(null);
-                                    setReceiptFileInputKey(prev => prev + 1);
-                                  }}
-                                  className="remove-image-button"
-                                >
-                                  Remove
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
                       </td>
                     </tr>
                   </tbody>
@@ -720,13 +517,13 @@ const AdminServiceFee: React.FC = () => {
               <table className="service-fee-table">
                 <thead>
                   <tr>
+                    <th style={{ width: '150px' }}>Reference #</th>
                     <th>Homeowner</th>
-                    <th>Email</th>
                     <th>Period</th>
                     <th>Amount</th>
                     <th>Due Date</th>
                     <th>Status</th>
-                    <th>Images</th>
+                    <th>Payment Link</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -734,18 +531,40 @@ const AdminServiceFee: React.FC = () => {
                   {serviceFees.map((serviceFee) => (
                     <tr key={serviceFee.id}>
                       <td>
+                        {serviceFee.latest_transaction ? (
+                          <div>
+                            <div style={{ 
+                              fontWeight: 'bold', 
+                              color: '#10b981', 
+                              fontSize: '0.95rem',
+                              marginBottom: '4px' 
+                            }}>
+                              {serviceFee.latest_transaction.reference_number}
+                            </div>
+                            <div style={{ 
+                              fontSize: '0.7rem', 
+                              color: '#6b7280' 
+                            }}>
+                              {serviceFee.latest_transaction.created_at && 
+                                new Date(serviceFee.latest_transaction.created_at).toLocaleDateString()}
+                            </div>
+                          </div>
+                        ) : (
+                          <span style={{ color: '#9ca3af', fontSize: '0.85rem' }}>No Ref</span>
+                        )}
+                      </td>
+                      <td>
                         {serviceFee.homeowner_name ? (
                           <div>
-                            <div>{serviceFee.homeowner_name}</div>
+                            <div style={{ fontWeight: '500' }}>{serviceFee.homeowner_name}</div>
                             <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '2px' }}>
-                              ID: {serviceFee.homeowner_id || serviceFee.homeowner}
+                              {serviceFee.homeowner_email || 'No email'}
                             </div>
                           </div>
                         ) : (
                           `ID: ${serviceFee.homeowner_id || serviceFee.homeowner}`
                         )}
                       </td>
-                      <td>{serviceFee.homeowner_email || 'N/A'}</td>
                       <td>{serviceFee.month || 'N/A'} {serviceFee.year || ''}</td>
                       <td>{serviceFee.amount ? `₱${parseFloat(serviceFee.amount).toFixed(2)}` : 'N/A'}</td>
                       <td>{serviceFee.due_date ? new Date(serviceFee.due_date).toLocaleDateString() : 'N/A'}</td>
@@ -758,26 +577,55 @@ const AdminServiceFee: React.FC = () => {
                         </span>
                       </td>
                       <td>
-                        <div className="table-images">
-                          {serviceFee.bill_image && (
-                            <a href={serviceFee.bill_image} target="_blank" rel="noopener noreferrer" title="Bill Image">
-                              <ImageIcon style={{ fontSize: '18px', color: '#3b82f6' }} />
+                        {serviceFee.latest_transaction ? (
+                          serviceFee.latest_transaction.paid ? (
+                            <div style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              backgroundColor: '#10b981',
+                              color: 'white',
+                              padding: '6px 12px',
+                              borderRadius: '6px',
+                              fontWeight: 'bold',
+                              fontSize: '0.85rem'
+                            }}>
+                              ✅ PAID
+                              {serviceFee.latest_transaction.paid_at && (
+                                <div style={{ 
+                                  fontSize: '0.7rem', 
+                                  opacity: 0.9,
+                                  marginLeft: '4px',
+                                  fontWeight: 'normal'
+                                }}>
+                                  ({new Date(serviceFee.latest_transaction.paid_at).toLocaleDateString()})
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <a 
+                              href={serviceFee.latest_transaction.checkout_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                backgroundColor: '#3b82f6',
+                                color: 'white',
+                                padding: '6px 12px',
+                                borderRadius: '6px',
+                                fontSize: '0.85rem',
+                                textDecoration: 'none',
+                                fontWeight: '500'
+                              }}
+                            >
+                              📋 View Link
                             </a>
-                          )}
-                          {serviceFee.policy_image && (
-                            <a href={serviceFee.policy_image} target="_blank" rel="noopener noreferrer" title="Policy Image">
-                              <DescriptionIcon style={{ fontSize: '18px', color: '#10b981' }} />
-                            </a>
-                          )}
-                          {serviceFee.receipt_image && (
-                            <a href={serviceFee.receipt_image} target="_blank" rel="noopener noreferrer" title="Receipt Image">
-                              <ReceiptIcon style={{ fontSize: '18px', color: '#f59e0b' }} />
-                            </a>
-                          )}
-                          {!serviceFee.bill_image && !serviceFee.policy_image && !serviceFee.receipt_image && (
-                            <span style={{ color: '#9ca3af', fontSize: '0.85rem' }}>None</span>
-                          )}
-                        </div>
+                          )
+                        ) : (
+                          <span style={{ color: '#9ca3af', fontSize: '0.85rem' }}>N/A</span>
+                        )}
                       </td>
                       <td>
                         <div className="table-actions">

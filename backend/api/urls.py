@@ -13,7 +13,14 @@ from .views import (
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from .views import UserHistoryListView, my_resident_pin, visitor_checkin, visitor_checkout, ResidentPinViewSet, ResidentApprovalViewSet, visitor_timeout, VisitorTrackingViewSet, HouseListCreateView, HouseViewSet, GuestHouseListView, GuestHouseDetailView, ReviewViewSet, FAQViewSet, ServiceFeeViewSet, BlogCommentViewSet, BulletinCommentViewSet, CommunityMediaViewSet, VisitorRequestViewSet, MaintenanceRequestViewSet, MaintenanceProviderViewSet, EmergencyContactViewSet, verify_pin_view
+from .views import UserHistoryListView, my_resident_pin, visitor_checkin, visitor_checkout, ResidentPinViewSet, ResidentApprovalViewSet, visitor_timeout, VisitorTrackingViewSet, HouseListCreateView, HouseViewSet, GuestHouseListView, GuestHouseDetailView, ReviewViewSet, FAQViewSet, ServiceFeeViewSet, BlogCommentViewSet, BulletinCommentViewSet, CommunityMediaViewSet, VisitorRequestViewSet, MaintenanceRequestViewSet, MaintenanceProviderViewSet, EmergencyContactViewSet, verify_pin_view, guard_login, guard_walk_in, guard_active_visitors, guard_checkin_pin, guard_checkout
+from .paymongo_views import (
+    create_payment,
+    check_transaction_status,
+    paymongo_webhook,
+    get_user_transactions
+)
+from . import simple_webhook
 
 
 router = DefaultRouter()
@@ -107,6 +114,22 @@ urlpatterns = [
 
     path('send_verification_email/', views.send_verification_email, name='send_verification_email'),
     path('verify_email_code/', views.verify_email_code, name='verify_email_code'),
+    
+    # PayMongo Payment Integration (QRPh/GCash/E-Wallet)
+    path('service-fees/<int:service_fee_id>/paymongo-payment/', create_payment, name='create-payment'),
+    path('paymongo/transaction/<int:transaction_id>/status/', check_transaction_status, name='check-transaction-status'),
+    path('paymongo/webhook/', paymongo_webhook, name='paymongo-webhook'),
+    path('paymongo/transactions/', get_user_transactions, name='get-user-transactions'),
+    
+    # Simple Payment Link Webhook
+    path('webhook/payment/', simple_webhook.payment_webhook, name='payment-webhook'),
+    
+    # Guard Endpoints
+    path('guard-login/', guard_login, name='guard-login'),
+    path('guard/walk-in/', guard_walk_in, name='guard-walk-in'),
+    path('guard/active-visitors/', guard_active_visitors, name='guard-active-visitors'),
+    path('guard/checkin-pin/<int:request_id>/', guard_checkin_pin, name='guard-checkin-pin'),
+    path('guard/checkout/<int:visitor_id>/', guard_checkout, name='guard-checkout'),
     
     path('', include(router.urls)),
 ]
